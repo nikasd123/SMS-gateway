@@ -94,15 +94,15 @@ public class MyNotificationListenerService extends NotificationListenerService {
         String webhookUrl = preferences.getString("webhook_url", "");
         Log.d("AAA", "Webhook URL is: " + webhookUrl);
 
-        //if (webhookUrl.isEmpty()){
-        //    return;
-        //}
+        if (webhookUrl.isEmpty()){
+            return;
+        }
 
         JSONObject json = new JSONObject(payload);
         RequestBody body = RequestBody.create(json.toString(), JSON);
 
         Request request = new Request.Builder()
-                .url(WEBHOOK_URL) // Используем URL из SharedPreferences
+                .url(webhookUrl) // Используем URL из SharedPreferences
                 .post(body)
                 .build();
 

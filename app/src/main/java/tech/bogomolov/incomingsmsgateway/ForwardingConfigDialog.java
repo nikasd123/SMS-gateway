@@ -5,14 +5,17 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.telephony.SubscriptionManager;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.Toast;
 
@@ -26,10 +29,12 @@ import java.util.Objects;
 public class ForwardingConfigDialog {
 
     static final public String BROADCAST_KEY = "TEST_RESULT";
+    private static final int REQUEST_CODE_QR_SCAN = 101;
 
-    final private Context context;
-    final private LayoutInflater layoutInflater;
-    final private ListAdapter listAdapter;
+    private final Context context;
+    private final LayoutInflater layoutInflater;
+    private final ListAdapter listAdapter;
+    private AlertDialog dialog;
 
     public ForwardingConfigDialog(Context context, LayoutInflater layoutInflater, ListAdapter listAdapter) {
         this.context = context;
@@ -47,9 +52,28 @@ public class ForwardingConfigDialog {
         context.registerReceiver(testResult, filter);
     }
 
+    public interface OnQrScanListener {
+        void onQrScan();
+    }
+
+    private OnQrScanListener qrScanListener;
+
+    public void setOnQrScanListener(OnQrScanListener listener) {
+        this.qrScanListener = listener;
+    }
+
     public void showNew() {
+        Log.d("AAA", "showNew called");
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         View view = layoutInflater.inflate(R.layout.dialog_config_edit_form, null);
+
+        ImageView scanQrImageView = view.findViewById(R.id.scanQr);
+        scanQrImageView.setOnClickListener(v -> {
+            Log.d("AAA", "scanQrImageView clicked");
+            if (qrScanListener != null) {
+                qrScanListener.onQrScan();
+            }
+        });
 
         final EditText templateInput = view.findViewById(R.id.input_json_template);
         templateInput.setText(ForwardingConfig.getDefaultJsonTemplate());
@@ -70,9 +94,11 @@ public class ForwardingConfigDialog {
         builder.setNegativeButton(R.string.btn_cancel, null);
         builder.setNeutralButton(R.string.btn_test, null);
 
-        final AlertDialog dialog = builder.show();
+        dialog = builder.show();
         Objects.requireNonNull(dialog.getWindow())
                 .setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+
+        EditText urlInput = view.findViewById(R.id.input_url);
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                 .setOnClickListener(view1 -> {
@@ -80,8 +106,16 @@ public class ForwardingConfigDialog {
                     if (config == null) {
                         return;
                     }
-                    config.save();
 
+                    String webhookUrl = urlInput.getText().toString();
+                    SharedPreferences preferences = context.getSharedPreferences("MyPreferences", Context.MODE_PRIVATE);
+                    SharedPreferences.Editor editor = preferences.edit();
+                    editor.putString("webhook_url", webhookUrl);
+                    editor.apply();
+
+                    Log.d("AAA", "DIALOG Webhook URL is: " + webhookUrl);
+
+                    config.save();
                     listAdapter.add(config);
                     dialog.dismiss();
                 });
@@ -91,6 +125,32 @@ public class ForwardingConfigDialog {
                     ForwardingConfig config = populateConfig(view, context, new ForwardingConfig(context));
                     testConfig(config);
                 });
+    }
+
+    public void updateFields(String jsonString) {
+        try {
+            Log.d("AAA", "updateFields: " + jsonString);
+            JSONObject jsonObject = new JSONObject(jsonString);
+            String sender = jsonObject.optString("sender", "");
+            String webhookUrl = jsonObject.optString("webhookUrl", "");
+            String payload = jsonObject.optJSONObject("payload").toString();
+
+            if (dialog != null && dialog.isShowing()) {
+                View view = dialog.findViewById(R.id.dialog_config_edit_form);
+                if (view != null) {
+                    EditText phoneInput = view.findViewById(R.id.input_phone);
+                    EditText urlInput = view.findViewById(R.id.input_url);
+                    EditText templateInput = view.findViewById(R.id.input_json_template);
+
+                    phoneInput.setText(sender);
+                    urlInput.setText(webhookUrl);
+                    templateInput.setText(payload);
+                }
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+            Toast.makeText(context, "Error parsing JSON", Toast.LENGTH_LONG).show();
+        }
     }
 
     public void showEdit(ForwardingConfig config) {
@@ -135,6 +195,15 @@ public class ForwardingConfigDialog {
                     if (configUpdated == null) {
                         return;
                     }
+
+                    String webhookUrl = urlInput.getText().toString();
+                    SharedPreferences preferences = context.getSharedPreferences("MyPreferences", Context.MODE_PRIVATE);
+                    SharedPreferences.Editor editor = preferences.edit();
+                    editor.putString("webhook_url", webhookUrl);
+                    editor.apply();
+
+                    Log.d("AAA", "DIALOG Webhook URL is: " + webhookUrl);
+
                     configUpdated.save();
                     listAdapter.notifyDataSetChanged();
                     dialog.dismiss();

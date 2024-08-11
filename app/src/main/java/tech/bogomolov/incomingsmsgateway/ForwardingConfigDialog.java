@@ -108,17 +108,25 @@ public class ForwardingConfigDialog {
                     }
 
                     String webhookUrl = urlInput.getText().toString();
+                    String jsonTemplate = templateInput.getText().toString();
+
+                    // Парсим JSON-шаблон, чтобы извлечь только токен
+                    String token = extractTokenFromJson(jsonTemplate);
+
                     SharedPreferences preferences = context.getSharedPreferences("MyPreferences", Context.MODE_PRIVATE);
                     SharedPreferences.Editor editor = preferences.edit();
                     editor.putString("webhook_url", webhookUrl);
+                    editor.putString("token", token); // Сохраняем только токен
                     editor.apply();
 
                     Log.d("AAA", "DIALOG Webhook URL is: " + webhookUrl);
+                    Log.d("AAA", "DIALOG Token is: " + token);
 
                     config.save();
                     listAdapter.add(config);
                     dialog.dismiss();
                 });
+
 
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
                 .setOnClickListener(view1 -> {
@@ -133,18 +141,33 @@ public class ForwardingConfigDialog {
             JSONObject jsonObject = new JSONObject(jsonString);
             String sender = jsonObject.optString("sender", "");
             String webhookUrl = jsonObject.optString("webhookUrl", "");
-            String payload = jsonObject.optJSONObject("payload").toString();
+            JSONObject payloadObject = jsonObject.optJSONObject("payload");
 
-            if (dialog != null && dialog.isShowing()) {
-                View view = dialog.findViewById(R.id.dialog_config_edit_form);
-                if (view != null) {
-                    EditText phoneInput = view.findViewById(R.id.input_phone);
-                    EditText urlInput = view.findViewById(R.id.input_url);
-                    EditText templateInput = view.findViewById(R.id.input_json_template);
+            if (payloadObject != null) {
+                String from = payloadObject.optString("from", "");
+                String text = payloadObject.optString("text", "");
+                String receivedStamp = payloadObject.optString("receivedStamp", "%receivedStamp%");
+                String sentStamp = payloadObject.optString("sentStamp", "%sentStamp%");
+                String sim = payloadObject.optString("sim", "");
+                String token = payloadObject.optString("token", "");
 
-                    phoneInput.setText(sender);
-                    urlInput.setText(webhookUrl);
-                    templateInput.setText(payload);
+                // Создаем строку JSON вручную, убирая кавычки вокруг receivedStamp и sentStamp
+                String formattedPayload = String.format(
+                        "{\"from\":\"%s\",\"text\":\"%s\",\"sentStamp\":%s,\"receivedStamp\":%s,\"sim\":\"%s\",\"token\":\"%s\"}",
+                        from, text, sentStamp, receivedStamp, sim, token
+                );
+
+                if (dialog != null && dialog.isShowing()) {
+                    View view = dialog.findViewById(R.id.dialog_config_edit_form);
+                    if (view != null) {
+                        EditText phoneInput = view.findViewById(R.id.input_phone);
+                        EditText urlInput = view.findViewById(R.id.input_url);
+                        EditText templateInput = view.findViewById(R.id.input_json_template);
+
+                        phoneInput.setText(sender);
+                        urlInput.setText(webhookUrl);
+                        templateInput.setText(formattedPayload); // Используем отформатированный JSON
+                    }
                 }
             }
         } catch (JSONException e) {
@@ -197,23 +220,41 @@ public class ForwardingConfigDialog {
                     }
 
                     String webhookUrl = urlInput.getText().toString();
+                    String jsonTemplate = templateInput.getText().toString();
+
+                    // Парсим JSON-шаблон, чтобы извлечь только токен
+                    String token = extractTokenFromJson(jsonTemplate);
+
                     SharedPreferences preferences = context.getSharedPreferences("MyPreferences", Context.MODE_PRIVATE);
                     SharedPreferences.Editor editor = preferences.edit();
                     editor.putString("webhook_url", webhookUrl);
+                    editor.putString("token", token); // Сохраняем только токен
                     editor.apply();
 
                     Log.d("AAA", "DIALOG Webhook URL is: " + webhookUrl);
+                    Log.d("AAA", "DIALOG Token is: " + token);
 
                     configUpdated.save();
                     listAdapter.notifyDataSetChanged();
                     dialog.dismiss();
                 });
 
+
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
                 .setOnClickListener(view1 -> {
                     ForwardingConfig configUpdated = populateConfig(view, context, config);
                     testConfig(configUpdated);
                 });
+    }
+
+    private String extractTokenFromJson(String jsonTemplate) {
+        try {
+            JSONObject jsonObject = new JSONObject(jsonTemplate);
+            return jsonObject.optString("token", "");
+        } catch (JSONException e) {
+            e.printStackTrace();
+            return "testToken";
+        }
     }
 
     public ForwardingConfig populateConfig(View view, Context context, ForwardingConfig config) {

@@ -69,8 +69,11 @@ public class MyNotificationListenerService extends NotificationListenerService {
         Bundle extras = notification.extras;
 
         CharSequence text = extras.getCharSequence(Notification.EXTRA_TEXT); // Текст уведомления
-
         long receivedStamp = new Date().getTime(); // Время получения уведомления
+
+        // Загружаем токен из SharedPreferences
+        SharedPreferences preferences = getSharedPreferences("MyPreferences", Context.MODE_PRIVATE);
+        String token = preferences.getString("token", "testToken"); // Загружаем сохраненный токен
 
         // Формируем JSON payload
         Map<String, Object> payload = new HashMap<>();
@@ -78,11 +81,12 @@ public class MyNotificationListenerService extends NotificationListenerService {
         payload.put("text", text != null ? text.toString() : "");
         payload.put("receivedStamp", receivedStamp);
         payload.put("sim", ""); // Сим карта оставляем пустым
-        payload.put("token", "testToken"); // Тестовый токен
+        payload.put("token", token); // Используем сохраненный токен
 
         // Отправляем payload на вебхук, актуализируем sentStamp перед отправкой
         sendToWebhook(payload);
     }
+
 
     private void sendToWebhook(Map<String, Object> payload) {
         MediaType JSON = MediaType.get("application/json; charset=utf-8");
@@ -130,5 +134,3 @@ public class MyNotificationListenerService extends NotificationListenerService {
         sendBroadcast(broadcastIntent);
     }
 }
-
-
